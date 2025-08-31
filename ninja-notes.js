@@ -85,14 +85,18 @@ async function saveHistory(notes) {
   await game.settings.set(MODULE_ID, "history", trimmed);
 }
 
-// ---------- GM Panel (V2 with fallback) ----------
-const AppV2 = foundry?.applications?.api?.ApplicationV2;
+/** ---------- GM Panel (V2 with fallback) ---------- */
+const AppAPI   = foundry?.applications?.api;
+const AppV2    = AppAPI?.ApplicationV2;
+const HBSMixin = AppAPI?.HandlebarsApplicationMixin;
 
-class NinjaNotesGMPanelV2 extends AppV2 {
+class NinjaNotesGMPanelV2 extends HBSMixin(AppV2) {
   static DEFAULT_OPTIONS = {
+    ...super.DEFAULT_OPTIONS,
     id: "ninja-notes-gm-panel",
-    tag: "section",
     classes: ["ninja-notes-app"],
+    tag: "section",
+    template: `modules/${MODULE_ID}/templates/gm-panel.hbs`,
     window: { title: "Ninja Notes", resizable: true, width: 400, height: 500 }
   };
 
@@ -101,28 +105,70 @@ class NinjaNotesGMPanelV2 extends AppV2 {
     this.notes = [];
   }
 
-  get template() { return `modules/${MODULE_ID}/templates/gm-panel.hbs`; }
-  getData() { return { notes: this.notes }; }
-
-  async setNotes(arr) { this.notes = arr; this.render(); }
-  async addNote(n) { this.notes.push(n); await saveHistory(this.notes); this.render(); }
-
-  _getHeaderButtons() {
-    const buttons = super._getHeaderButtons();
-    buttons.unshift({ label: "Clear", icon: "fas fa-trash", action: async () => {
-      this.notes = []; await saveHistory(this.notes); this.render();
-    }});
-    return buttons;
+  /** Handlebars mixin expects context from _prepareContext (not getData) */
+  async _prepareContext(_options) {
+    return { notes: this.notes };
   }
 
+  /** Button in template still works; keep listeners */
   activateListeners(html) {
     super.activateListeners(html);
     html.find(".clear-notes").on("click", async () => {
-      this.notes = []; await saveHistory(this.notes); this.render();
+      this.notes = [];
+      await saveHistory(this.notes);
+      this.render();
     });
   }
+
+  async setNotes(arr) { this.notes = arr; this.render(); }
+  async addNote(n)     { this.notes.push(n); await saveHistory(this.notes); this.render(); }
 }
 
+/** Open the GM panel (create if needed), bring to top, and flash briefly */
+function openPanelAndFlash() {
+  if (!game.user.isGM) return;
+
+  // Ensure panel exists
+  if (!game.ninjaNotes?.gmPanel) game.ninjaNotes.gmPanel = new GMPanelClass();
+  const p = game.ninjaNotes.gmPanel;
+
+  // Render (V2 vs V1)
+  if (foundry?.applications?.api?.ApplicationV2) p.render();
+  else p.render(true);
+
+  // Try to focus/top
+  try { p.bringToTop?.(); } catch (e) {}
+
+  // Flash the window root
+  setTimeout(() => {
+    const el =
+      document.getElementById("ninja-notes-gm-panel") ||
+      document.querySelector(".ninja-notes-app");
+    if (!el) return;
+    el.classList.remove("nn-flash"); // reset
+    // restart animation
+    void el.offsetWidth;
+    el.classList.add("nn-flash");
+    setTimeout(() => el.classList.remove("nn-flash"), 3000);
+  }, 50);
+}
+
+/** Add a GM-only tool button under the Token controls */
+Hooks.on("getSceneControlButtons", (controls) => {
+  const token = controls.find(c => c.name === "token");
+  if (!token) return;
+
+  token.tools.push({
+    name: "ninja-notes-open",
+    title: "Open Ninja Notes",
+    icon: "fas fa-scroll",
+    visible: game.user.isGM === true,   // GM only
+    button: true,
+    onClick: () => openPanelAndFlash()
+  });
+});
+
+/** Classic fallback stays the same */
 class NinjaNotesGMPanelV1 extends Application {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
@@ -133,13 +179,10 @@ class NinjaNotesGMPanelV1 extends Application {
       classes: ["ninja-notes-app"]
     });
   }
-
   constructor(options = {}) { super(options); this.notes = []; }
   getData() { return { notes: this.notes }; }
-
   async setNotes(arr) { this.notes = arr; this.render(true); }
   async addNote(n) { this.notes.push(n); await saveHistory(this.notes); this.render(true); }
-
   _getHeaderButtons() {
     const buttons = super._getHeaderButtons();
     buttons.unshift({
@@ -148,7 +191,6 @@ class NinjaNotesGMPanelV1 extends Application {
     });
     return buttons;
   }
-
   activateListeners(html) {
     super.activateListeners(html);
     html.find(".clear-notes").on("click", async () => {
@@ -157,7 +199,8 @@ class NinjaNotesGMPanelV1 extends Application {
   }
 }
 
-const GMPanelClass = AppV2 ? NinjaNotesGMPanelV2 : NinjaNotesGMPanelV1;
+/** Use V2 only if both API and mixin exist; else fall back cleanly */
+const GMPanelClass = (AppV2 && HBSMixin) ? NinjaNotesGMPanelV2 : NinjaNotesGMPanelV1;
 
 // ---------- State ----------
 const gmThrottle = new Map();     // GM-side enforcement: senderId -> timestamps[]
@@ -219,6 +262,9 @@ Hooks.on("ready", async () => {
       }
     });
   }
+  
+  // Bring panel forward and flash header for a moment
+openPanelAndFlash();
 
   // All clients listen for "throttled" notices
   game.socket.on(SOCKET_NAME, (data) => {

@@ -56,3 +56,17 @@
   border-top: 1px solid #ccc;
   background: rgba(0,0,0,0.05);
 }
+
+/* Flash effect on note arrival */
+@keyframes nn-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
+  25%  { box-shadow: 0 0 12px 4px rgba(255, 200, 50, 0.9); }
+  50%  { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
+  75%  { box-shadow: 0 0 12px 4px rgba(255, 200, 50, 0.9); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
+}
+
+.ninja-notes-app.nn-flash,
+.app.window-app.ninja-notes-app.nn-flash {
+  animation: nn-flash 0.8s ease-in-out 2;
+}
