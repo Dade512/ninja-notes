@@ -1,0 +1,20 @@
+<div class="ninja-notes-container">
+  <div class="notes-list">
+    {{#if notes.length}}
+      {{#each notes}}
+        <div class="ninja-note" style="border-left-color: {{this.senderColor}};">
+          <strong class="sender-name">{{this.senderName}}</strong>
+          <p class="note-message">{{this.message}}</p>
+        </div>
+      {{/each}}
+    {{else}}
+      <div class="no-notes">
+        <p>No notes received yet.</p>
+      </div>
+    {{/if}}
+  </div>
+
+  <div class="panel-footer">
+    <button class="clear-notes"><i class="fas fa-trash"></i> Clear All Notes</button>
+  </div>
+</div>
