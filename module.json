@@ -2,7 +2,7 @@
   "id": "ninja-notes",
   "title": "Ninja Notes",
   "description": "Players can send secret notes to the GM outside of chat.",
-  "version": "1.2.0",
+  "version": "1.2.3",
   "authors": [
     { "name": "Michael & Lyra", "url": "" }
   ],
@@ -10,9 +10,9 @@
   "esmodules": ["ninja-notes.js"],
   "styles": ["styles/ninja-notes.css"],
   "socket": true,
-  "version": "1.2.3",
 "url": "https://github.com/Dade512/ninja-notes",
 "manifest": "https://raw.githubusercontent.com/Dade512/ninja-notes/main/module.json",
 "download": "https://github.com/Dade512/ninja-notes/releases/download/v1.2.3/ninja-notes-1.2.3.zip"
 
 }
+
