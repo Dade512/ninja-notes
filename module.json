@@ -10,7 +10,8 @@
   "esmodules": ["ninja-notes.js"],
   "styles": ["styles/ninja-notes.css"],
   "socket": true,
-  "url": "",
-  "manifest": "",
-  "download": ""
+  "url": "https://github.com/Dade512/ninja-notes",
+  "manifest": "https://raw.githubusercontent.com/Dade512/ninja-notes/main/module.json",
+  "download": "https://github.com/Dade512/ninja-notes/releases/download/v1.2.0/ninja-notes-1.2.0.zip"
 }
+
