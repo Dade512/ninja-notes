@@ -1,8 +1,12 @@
+/* eslint-disable no-undef */
 const MODULE_ID = "ninja-notes";
 const SOCKET_NAME = `module.${MODULE_ID}`;
 
-// ---------- Settings ----------
+/* ------------------------------------ */
+/* Settings                              */
+/* ------------------------------------ */
 Hooks.once("init", () => {
+  // Behavior
   game.settings.register(MODULE_ID, "autoOpenGMPanel", {
     name: "Auto-open GM Panel",
     hint: "Open the Ninja Notes panel automatically when the world loads (GM only).",
@@ -15,7 +19,7 @@ Hooks.once("init", () => {
     scope: "client", config: true, type: Boolean, default: true
   });
 
-  // Throttling (world-level, enforced by GM; players also precheck)
+  // Throttling (GM enforced; clients also precheck)
   game.settings.register(MODULE_ID, "maxNotesPerWindow", {
     name: "Throttle: Max Notes per Window",
     hint: "How many notes a player can send within the time window.",
@@ -44,16 +48,18 @@ Hooks.once("init", () => {
     range: { min: 10, max: 1000, step: 10 }
   });
 
-  // Internal: stored note array (GM writes)
+  // Internal: GM writes, others read
   game.settings.register(MODULE_ID, "history", {
     scope: "world", config: false, type: Object, default: []
   });
 
-  // Global ref
+  // Global module ref
   game.ninjaNotes = { gmPanel: null };
 });
 
-// ---------- Helpers ----------
+/* ------------------------------------ */
+/* Helpers                               */
+/* ------------------------------------ */
 function throttleConfig() {
   const limit = Math.max(1, Number(game.settings.get(MODULE_ID, "maxNotesPerWindow") || 3));
   const windowMs = Math.max(5, Number(game.settings.get(MODULE_ID, "windowSeconds") || 60)) * 1000;
@@ -70,47 +76,95 @@ function isThrottled(map, key, limit, windowMs) {
 }
 
 async function loadHistory() {
-  const persist = game.settings.get(MODULE_ID, "persistHistory");
-  if (!persist) return [];
+  if (!game.settings.get(MODULE_ID, "persistHistory")) return [];
   const h = game.settings.get(MODULE_ID, "history") ?? [];
   return Array.isArray(h) ? h : [];
 }
 
 async function saveHistory(notes) {
   if (!game.user.isGM) return;
-  const persist = game.settings.get(MODULE_ID, "persistHistory");
-  if (!persist) return;
+  if (!game.settings.get(MODULE_ID, "persistHistory")) return;
   const cap = Math.max(1, Number(game.settings.get(MODULE_ID, "persistHistoryLimit") || 200));
   const trimmed = notes.slice(-cap);
   await game.settings.set(MODULE_ID, "history", trimmed);
 }
 
-/** ---------- GM Panel (V2 with fallback) ---------- */
+function anyGMActive() {
+  return game.users?.some(u => u.isGM && u.active);
+}
+
+/** Open the GM panel (create if needed), bring to top, and flash briefly */
+function openPanelAndFlash() {
+  if (!game.user.isGM) return;
+  if (!game.ninjaNotes?.gmPanel) game.ninjaNotes.gmPanel = new GMPanelClass();
+  const p = game.ninjaNotes.gmPanel;
+
+  // Render (V2 vs V1)
+  if (foundry?.applications?.api?.ApplicationV2) p.render();
+  else p.render(true);
+
+  // Try to focus/top
+  try { p.bringToTop?.(); } catch (e) {}
+
+  // Flash the window root by toggling a CSS class
+  setTimeout(() => {
+    const el =
+      document.getElementById("ninja-notes-gm-panel") ||
+      document.querySelector(".ninja-notes-app");
+    if (!el) return;
+    el.classList.remove("nn-flash");
+    void el.offsetWidth;               // restart animation
+    el.classList.add("nn-flash");
+    setTimeout(() => el.classList.remove("nn-flash"), 3000);
+  }, 50);
+}
+
+/* ------------------------------------ */
+/* GM Panel (ApplicationV2 + Handlebars) */
+/* Fallback to classic Application (V1)  */
+/* ------------------------------------ */
 const AppAPI   = foundry?.applications?.api;
 const AppV2    = AppAPI?.ApplicationV2;
 const HBSMixin = AppAPI?.HandlebarsApplicationMixin;
 
+/* V2 */
 class NinjaNotesGMPanelV2 extends HBSMixin(AppV2) {
-  static DEFAULT_OPTIONS = {
-    ...super.DEFAULT_OPTIONS,
-    id: "ninja-notes-gm-panel",
-    classes: ["ninja-notes-app"],
-    tag: "section",
-    template: `modules/${MODULE_ID}/templates/gm-panel.hbs`,
-    window: { title: "Ninja Notes", resizable: true, width: 400, height: 500 }
-  };
+  static get DEFAULT_OPTIONS() {
+    return {
+      ...super.DEFAULT_OPTIONS,
+      id: "ninja-notes-gm-panel",
+      classes: ["ninja-notes-app"],
+      tag: "section",
+      template: `modules/${MODULE_ID}/templates/gm-panel.hbs`,
+      window: {
+        title: "Ninja Notes",
+        resizable: true,
+        width: 400,
+        height: 500,
+        // Header control (Clear)
+        controls: [{
+          label: "Clear",
+          icon: "fas fa-trash",
+          action: async (app/*, event*/) => {
+            app.notes = [];
+            await saveHistory(app.notes);
+            app.render();
+          }
+        }]
+      }
+    };
+  }
 
   constructor(options = {}) {
     super(options);
     this.notes = [];
   }
 
-  /** Handlebars mixin expects context from _prepareContext (not getData) */
+  /** Handlebars mixin wants _prepareContext (not getData) */
   async _prepareContext(_options) {
     return { notes: this.notes };
   }
 
-  /** Button in template still works; keep listeners */
   activateListeners(html) {
     super.activateListeners(html);
     html.find(".clear-notes").on("click", async () => {
@@ -124,51 +178,7 @@ class NinjaNotesGMPanelV2 extends HBSMixin(AppV2) {
   async addNote(n)     { this.notes.push(n); await saveHistory(this.notes); this.render(); }
 }
 
-/** Open the GM panel (create if needed), bring to top, and flash briefly */
-function openPanelAndFlash() {
-  if (!game.user.isGM) return;
-
-  // Ensure panel exists
-  if (!game.ninjaNotes?.gmPanel) game.ninjaNotes.gmPanel = new GMPanelClass();
-  const p = game.ninjaNotes.gmPanel;
-
-  // Render (V2 vs V1)
-  if (foundry?.applications?.api?.ApplicationV2) p.render();
-  else p.render(true);
-
-  // Try to focus/top
-  try { p.bringToTop?.(); } catch (e) {}
-
-  // Flash the window root
-  setTimeout(() => {
-    const el =
-      document.getElementById("ninja-notes-gm-panel") ||
-      document.querySelector(".ninja-notes-app");
-    if (!el) return;
-    el.classList.remove("nn-flash"); // reset
-    // restart animation
-    void el.offsetWidth;
-    el.classList.add("nn-flash");
-    setTimeout(() => el.classList.remove("nn-flash"), 3000);
-  }, 50);
-}
-
-/** Add a GM-only tool button under the Token controls */
-Hooks.on("getSceneControlButtons", (controls) => {
-  const token = controls.find(c => c.name === "token");
-  if (!token) return;
-
-  token.tools.push({
-    name: "ninja-notes-open",
-    title: "Open Ninja Notes",
-    icon: "fas fa-scroll",
-    visible: game.user.isGM === true,   // GM only
-    button: true,
-    onClick: () => openPanelAndFlash()
-  });
-});
-
-/** Classic fallback stays the same */
+/* Classic */
 class NinjaNotesGMPanelV1 extends Application {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
@@ -179,10 +189,12 @@ class NinjaNotesGMPanelV1 extends Application {
       classes: ["ninja-notes-app"]
     });
   }
+
   constructor(options = {}) { super(options); this.notes = []; }
   getData() { return { notes: this.notes }; }
   async setNotes(arr) { this.notes = arr; this.render(true); }
   async addNote(n) { this.notes.push(n); await saveHistory(this.notes); this.render(true); }
+
   _getHeaderButtons() {
     const buttons = super._getHeaderButtons();
     buttons.unshift({
@@ -191,24 +203,30 @@ class NinjaNotesGMPanelV1 extends Application {
     });
     return buttons;
   }
+
   activateListeners(html) {
     super.activateListeners(html);
     html.find(".clear-notes").on("click", async () => {
-      this.notes = []; await saveHistory(this.notes); this.render(true);
+      this.notes = [];
+      await saveHistory(this.notes);
+      this.render(true);
     });
   }
 }
 
-/** Use V2 only if both API and mixin exist; else fall back cleanly */
 const GMPanelClass = (AppV2 && HBSMixin) ? NinjaNotesGMPanelV2 : NinjaNotesGMPanelV1;
 
-// ---------- State ----------
-const gmThrottle = new Map();     // GM-side enforcement: senderId -> timestamps[]
-const clientThrottle = new Map(); // Client-side precheck: current user -> timestamps[]
+/* ------------------------------------ */
+/* State                                 */
+/* ------------------------------------ */
+const gmThrottle = new Map();     // GM-side: senderId -> timestamps[]
+const clientThrottle = new Map(); // Client-side: current user -> timestamps[]
 
-// ---------- Ready: GM socket + panel + persistence ----------
+/* ------------------------------------ */
+/* Ready: GM panel + socket + persistence */
+/* ------------------------------------ */
 Hooks.on("ready", async () => {
-  // GM panel + load history
+  // GM boot
   if (game.user.isGM) {
     if (!game.ninjaNotes.gmPanel) game.ninjaNotes.gmPanel = new GMPanelClass();
 
@@ -220,7 +238,7 @@ Hooks.on("ready", async () => {
       if (AppV2) game.ninjaNotes.gmPanel.render(); else game.ninjaNotes.gmPanel.render(true);
     }
 
-    // GM listens for notes
+    // GM listens for incoming notes
     game.socket.on(SOCKET_NAME, async (data) => {
       if (data?.type !== "newNote") return;
 
@@ -230,7 +248,7 @@ Hooks.on("ready", async () => {
 
       // Enforce throttle
       if (isThrottled(gmThrottle, senderId, limit, windowMs)) {
-        // Inform only the sender (others ignore)
+        // Inform only the sender
         game.socket.emit(SOCKET_NAME, {
           type: "throttled",
           payload: { targetId: senderId, retryMs: windowMs }
@@ -252,6 +270,7 @@ Hooks.on("ready", async () => {
       await game.ninjaNotes.gmPanel.addNote(noteData);
       ui.notifications.info(`${sender.name} sent you a Ninja Note!`);
 
+      // GM local chime (no rebroadcast)
       try {
         if (game.settings.get(MODULE_ID, "playSound")) {
           const src = `modules/${MODULE_ID}/sounds/note.mp3`;
@@ -260,13 +279,13 @@ Hooks.on("ready", async () => {
       } catch (err) {
         console.warn(`${MODULE_ID} | Audio play failed:`, err);
       }
+
+      // Bring panel forward and flash for visibility
+      openPanelAndFlash();
     });
   }
-  
-  // Bring panel forward and flash header for a moment
-openPanelAndFlash();
 
-  // All clients listen for "throttled" notices
+  // All clients listen for "throttled" replies
   game.socket.on(SOCKET_NAME, (data) => {
     if (data?.type !== "throttled") return;
     const { targetId, retryMs } = data.payload || {};
@@ -277,7 +296,9 @@ openPanelAndFlash();
   });
 });
 
-// ---------- Player UX: context menu entry on GM ----------
+/* ------------------------------------ */
+/* Player UX: context menu on GM         */
+/* ------------------------------------ */
 function openNinjaNoteDialog(prefill = "") {
   new Dialog({
     title: "Send Ninja Note",
@@ -316,23 +337,72 @@ Hooks.on("getUserContextOptions", (_playerList, options) => {
   });
 });
 
-// ---------- Slash command: /nn Your message here ----------
-Hooks.on("chatMessage", (_log, content, chatData) => {
-  const m = String(content ?? "").trim().match(/^\/(nn|ninja)\s+(.*)$/i);
-  if (!m) return;
-  const msg = m[2].trim();
-  if (!msg) return false; // consume silently
-  sendNinjaNote(msg);
-  return false; // prevent posting to chat
+/* ------------------------------------ */
+/* Slash commands: /nn, /ninja, /nnhelp  */
+/* ------------------------------------ */
+Hooks.on("chatMessage", (_log, content, _chatData) => {
+  const raw = String(content ?? "").trim();
+
+  // /nn or /ninja
+  let m = raw.match(/^\/(nn|ninja)\s+(.*)$/i);
+  if (m) {
+    const msg = m[2].trim();
+    if (!msg) return false;
+    sendNinjaNote(msg);
+    return false; // consume
+  }
+
+  // /nnhelp
+  m = raw.match(/^\/nnhelp$/i);
+  if (m) {
+    const throttle = throttleConfig();
+    const gmOnline = anyGMActive();
+    const html = `
+      <p><b>Ninja Notes</b> — send secret notes to the GM.</p>
+      <ul>
+        <li><code>/nn your message</code> or right-click a GM → <i>Send Ninja Note to GM</i></li>
+        <li>Throttle: ${throttle.limit} notes / ${Math.round(throttle.windowMs/1000)}s</li>
+        <li>GM online right now: ${gmOnline ? "Yes" : "No (note still sends, but won’t be seen until a GM is online)"}</li>
+      </ul>`;
+    ChatMessage.create({ content: html, whisper: [game.user.id] });
+    return false;
+  }
+
+  // otherwise let chat continue
 });
 
-// ---------- Send helper with client-side throttle ----------
+/* ------------------------------------ */
+/* GM Controls button (Token tools)      */
+/* ------------------------------------ */
+Hooks.on("getSceneControlButtons", (controls) => {
+  const token = controls.find(c => c.name === "token");
+  if (!token) return;
+
+  token.tools.push({
+    name: "ninja-notes-open",
+    title: "Open Ninja Notes",
+    icon: "fas fa-scroll",
+    visible: game.user.isGM === true,   // GM only
+    button: true,
+    onClick: () => openPanelAndFlash()
+  });
+});
+
+/* ------------------------------------ */
+/* Send helper + client-side throttle    */
+/* ------------------------------------ */
 function sendNinjaNote(message) {
   const { limit, windowMs } = throttleConfig();
   const key = game.user.id;
+
   if (isThrottled(clientThrottle, key, limit, windowMs)) {
     ui.notifications.warn("You're sending notes too fast. Try again shortly.");
     return;
+  }
+
+  // Gentle heads-up if no GM is online
+  if (!anyGMActive()) {
+    ui.notifications.warn("No GM is currently online. Your Ninja Note will only be seen when a GM is present.");
   }
 
   const payload = { senderId: game.user.id, message: String(message) };
