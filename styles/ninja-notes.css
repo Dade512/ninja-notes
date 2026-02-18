@@ -1,7 +1,11 @@
-/* GM panel look */
-.ninja-notes-app .window-content {
+/* ──────────────────────────────────────── */
+/* Ninja Notes — v2.0 for Foundry v13       */
+/* ──────────────────────────────────────── */
+
+/* GM Panel container */
+.ninja-notes-app .application-content {
   padding: 0;
-  background: url(/ui/parchment.jpg) repeat; /* core parchment */
+  background: var(--color-bg-option, rgba(255, 255, 240, 0.95));
 }
 
 .ninja-notes-container {
@@ -18,43 +22,55 @@
 
 /* Individual notes */
 .ninja-note {
-  background-color: rgba(255, 255, 240, 0.85);
+  background-color: var(--color-bg-btn, rgba(255, 255, 240, 0.85));
   border-radius: 6px;
   padding: 8px 12px;
   margin-bottom: 10px;
   border-left: 5px solid #000;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s ease;
+}
+
+.ninja-note:hover {
+  background-color: var(--color-bg-btn-hover, rgba(255, 255, 220, 0.95));
+}
+
+.ninja-note .note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
 }
 
 .ninja-note .sender-name {
   font-weight: 700;
-  color: #442211;
-  display: block;
-  margin-bottom: 4px;
+  color: var(--color-text-primary, #442211);
+}
+
+.ninja-note .note-time {
+  font-size: 0.8em;
+  color: var(--color-text-secondary, #888);
+  font-style: italic;
 }
 
 .ninja-note .note-message {
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
+  color: var(--color-text-primary, #333);
+  line-height: 1.4;
 }
 
 /* Empty state */
 .no-notes {
   text-align: center;
-  color: #666;
+  color: var(--color-text-secondary, #666);
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-/* Footer */
-.panel-footer {
-  padding: 8px;
-  text-align: right;
-  border-top: 1px solid #ccc;
-  background: rgba(0,0,0,0.05);
+  opacity: 0.7;
 }
 
 /* Flash effect on note arrival */
@@ -66,7 +82,6 @@
   100% { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
 }
 
-.ninja-notes-app.nn-flash,
-.app.window-app.ninja-notes-app.nn-flash {
+.ninja-notes-app.nn-flash {
   animation: nn-flash 0.8s ease-in-out 2;
 }
