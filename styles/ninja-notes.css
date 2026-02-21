@@ -1,11 +1,22 @@
 /* ──────────────────────────────────────── */
-/* Ninja Notes — v2.0 for Foundry v13       */
+/* Ninja Notes — v2.1 Military Noir Edition */
+/* Field Intel | Typed Dossier Aesthetic     */
+/* For Foundry VTT v13                       */
 /* ──────────────────────────────────────── */
 
+/* Font import — standalone fallback if baphomet-utils isn't loaded */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Oswald:wght@400;500;600;700&display=swap');
+
 /* GM Panel container */
+.ninja-notes-app .window-header {
+  font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .ninja-notes-app .application-content {
   padding: 0;
-  background: var(--color-bg-option, rgba(255, 255, 240, 0.95));
+  background: var(--baph-bg-dark, #181b20);
 }
 
 .ninja-notes-container {
@@ -20,68 +31,133 @@
   padding: 10px;
 }
 
-/* Individual notes */
+/* Individual notes — typed field report aesthetic */
 .ninja-note {
-  background-color: var(--color-bg-btn, rgba(255, 255, 240, 0.85));
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin-bottom: 10px;
-  border-left: 5px solid #000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: background-color 0.2s ease;
+  background-color: var(--baph-bg-mid, #1e2228);
+  border-radius: 2px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-left: 3px solid #000;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transition: background-color 0.1s step-end;
+  position: relative;
 }
 
 .ninja-note:hover {
-  background-color: var(--color-bg-btn-hover, rgba(255, 255, 220, 0.95));
+  background-color: var(--baph-bg-light, #262b33);
 }
 
 .ninja-note .note-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 4px;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .ninja-note .sender-name {
-  font-weight: 700;
-  color: var(--color-text-primary, #442211);
+  font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 12px;
+  color: var(--baph-gold, #b8943e);
 }
 
 .ninja-note .note-time {
-  font-size: 0.8em;
-  color: var(--color-text-secondary, #888);
-  font-style: italic;
+  font-size: 10px;
+  color: var(--baph-text-muted, #5c6370);
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  letter-spacing: 0.02em;
 }
 
+/* The message body — monospace typed dossier */
 .ninja-note .note-message {
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
-  color: var(--color-text-primary, #333);
-  line-height: 1.4;
+  color: var(--baph-text-primary, #c8ccd4);
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+}
+
+/* Per-note dismiss button */
+.ninja-note .note-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--baph-text-muted, #5c6370);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.ninja-note:hover .note-dismiss {
+  opacity: 1;
+}
+
+.ninja-note .note-dismiss:hover {
+  color: var(--baph-danger-bright, #c45050);
 }
 
 /* Empty state */
 .no-notes {
   text-align: center;
-  color: var(--color-text-secondary, #666);
+  color: var(--baph-text-muted, #5c6370);
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  opacity: 0.7;
+  opacity: 0.6;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  font-size: 12px;
 }
 
-/* Flash effect on note arrival */
+.no-notes .empty-icon {
+  font-size: 2em;
+  opacity: 0.25;
+  margin-bottom: 10px;
+}
+
+.no-notes .empty-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
+  font-size: 13px;
+}
+
+/* Flash effect on transmission arrival — gold pulse */
 @keyframes nn-flash {
-  0%   { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
-  25%  { box-shadow: 0 0 12px 4px rgba(255, 200, 50, 0.9); }
-  50%  { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
-  75%  { box-shadow: 0 0 12px 4px rgba(255, 200, 50, 0.9); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 200, 50, 0.0); }
+  0%   { box-shadow: 0 0 0 0 rgba(184, 148, 62, 0.0); }
+  25%  { box-shadow: 0 0 10px 3px rgba(184, 148, 62, 0.7); }
+  50%  { box-shadow: 0 0 0 0 rgba(184, 148, 62, 0.0); }
+  75%  { box-shadow: 0 0 10px 3px rgba(184, 148, 62, 0.7); }
+  100% { box-shadow: 0 0 0 0 rgba(184, 148, 62, 0.0); }
 }
 
 .ninja-notes-app.nn-flash {
   animation: nn-flash 0.8s ease-in-out 2;
+}
+
+/* Scrollbar — match noir theme if available */
+.ninja-notes-app .notes-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ninja-notes-app .notes-list::-webkit-scrollbar-track {
+  background: var(--baph-bg-darkest, #0f1114);
+}
+
+.ninja-notes-app .notes-list::-webkit-scrollbar-thumb {
+  background: var(--baph-bg-surface, #353c47);
+}
+
+.ninja-notes-app .notes-list::-webkit-scrollbar-thumb:hover {
+  background: var(--baph-gold-dim, #8a6f2e);
 }

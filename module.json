@@ -1,8 +1,8 @@
 {
   "id": "ninja-notes",
-  "title": "Ninja Notes",
-  "description": "Players can send secret notes to the GM outside of chat.",
-  "version": "2.0.0",
+  "title": "Ninja Notes — Secret Notes",
+  "description": "Players pass secret notes to the GM outside of chat. Noir-themed for the Echoes of Baphomet campaign.",
+  "version": "2.1.0",
   "authors": [
     { "name": "Michael & Lyra", "url": "" }
   ],
@@ -15,5 +15,5 @@
   "socket": true,
   "url": "https://github.com/Dade512/ninja-notes",
   "manifest": "https://raw.githubusercontent.com/Dade512/ninja-notes/main/module.json",
-  "download": "https://github.com/Dade512/ninja-notes/releases/download/v2.0.0/ninja-notes-2.0.0.zip"
+  "download": "https://github.com/Dade512/ninja-notes/releases/download/v2.1.0/ninja-notes-2.1.0.zip"
 }

@@ -8,7 +8,7 @@ const SOCKET_NAME = `module.${MODULE_ID}`;
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "autoOpenGMPanel", {
     name: "Auto-open GM Panel",
-    hint: "Open the Ninja Notes panel automatically when the world loads (GM only).",
+    hint: "Open the Secret Notes panel automatically when the world loads (GM only).",
     scope: "world",
     config: true,
     type: Boolean,
@@ -17,7 +17,7 @@ Hooks.once("init", () => {
 
   game.settings.register(MODULE_ID, "playSound", {
     name: "Play Sound on Note",
-    hint: "Play a local chime when a Ninja Note arrives.",
+    hint: "Play a sound when a secret note arrives.",
     scope: "client",
     config: true,
     type: Boolean,
@@ -152,8 +152,11 @@ function flashWindow(app) {
 function playNotificationSound() {
   if (!game.settings.get(MODULE_ID, "playSound")) return;
   try {
-    const audio = new Audio(`modules/${MODULE_ID}/sounds/note.mp3`);
-    audio.volume = 0.6;
+    // Military noir: telegraph click / radio static cue
+    // Place your preferred .mp3/.ogg in modules/ninja-notes/sounds/
+    // Recommended: short telegraph key click, typewriter bell, or radio static burst
+    const audio = new Audio(`modules/${MODULE_ID}/sounds/transmission.mp3`);
+    audio.volume = 0.5;
     audio.play().catch(() => {});
   } catch {
     // Ignore audio errors
@@ -180,9 +183,9 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ninja-notes-gm-panel",
     classes: ["ninja-notes-app"],
-    position: { width: 400, height: 500 },
+    position: { width: 420, height: 500 },
     window: {
-      title: "Ninja Notes",
+      title: "Secret Notes",
       resizable: true,
       controls: [
         {
@@ -193,7 +196,8 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       ]
     },
     actions: {
-      clearNotes: NinjaNotesGMPanel._onClearNotes
+      clearNotes: NinjaNotesGMPanel._onClearNotes,
+      dismissNote: NinjaNotesGMPanel._onDismissNote
     }
   };
 
@@ -212,8 +216,9 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   /** @override */
   async _prepareContext(_options) {
     return {
-      notes: this.notes.map(note => ({
+      notes: this.notes.map((note, index) => ({
         ...note,
+        index,
         timestamp: formatTimestamp(note.ts),
         escapedMessage: escapeHTML(note.message)
       }))
@@ -238,10 +243,33 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * Dismiss a specific note by index.
+   * Actively splices from the array and persists to game.settings
+   * to prevent setting size bloat over long sessions.
+   */
+  async dismissNote(index) {
+    const idx = Number(index);
+    if (isNaN(idx) || idx < 0 || idx >= this.notes.length) return;
+    this.notes.splice(idx, 1);
+    await saveHistory(this.notes);
+    this.render({ force: true });
+  }
+
+  /**
    * Header button action: Clear all notes
    */
   static async _onClearNotes() {
     await this.clearNotes();
+  }
+
+  /**
+   * Per-note dismiss action (data-action="dismissNote")
+   */
+  static async _onDismissNote(event, target) {
+    const noteIndex = target?.dataset?.noteIndex;
+    if (noteIndex != null) {
+      await this.dismissNote(noteIndex);
+    }
   }
 }
 
@@ -293,7 +321,7 @@ async function handleIncomingNote(payload) {
   const panel = game.ninjaNotes.gmPanel;
   if (panel) {
     await panel.addNote(note);
-    ui.notifications.info(`Ninja Note from ${sender.name}`);
+    ui.notifications.info(`Secret note from ${sender.name}`);
     playNotificationSound();
     panel.render({ force: true });
     flashWindow(panel);
@@ -312,27 +340,28 @@ function handleThrottleNotification(payload) {
 /* ──────────────────────────────────────── */
 async function openNoteDialog(prefill = "") {
   if (!isGMOnline()) {
-    ui.notifications.warn("No GM is online. Your note will only be seen when a GM logs in.");
+    ui.notifications.warn("No GM is online. Your note will be waiting when they return.");
   }
 
   const gmStatus = isGMOnline() ? "Yes" : "No";
+  const statusColor = isGMOnline() ? "#5a9a5a" : "#8b3a3a";
   const escaped = foundry.utils.escapeHTML?.(prefill) ?? escapeHTML(prefill);
 
   const content = `
     <div class="form-group">
-      <label>Secret message to GM:</label>
-      <textarea name="ninja-note-text" rows="6" style="width:100%; resize: vertical; font-family: inherit;">${escaped}</textarea>
+      <label style="font-family: 'Oswald', 'Impact', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-size: 13px;">Your Note:</label>
+      <textarea name="ninja-note-text" rows="6" style="width:100%; resize: vertical; font-family: 'IBM Plex Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.5;">${escaped}</textarea>
     </div>
-    <p style="font-size: 0.9em; opacity: 0.7; margin-top: 8px;">
-      <i class="fas fa-info-circle"></i> GM Online: ${gmStatus}
+    <p style="font-size: 0.85em; opacity: 0.7; margin-top: 8px; font-family: 'IBM Plex Mono', 'Courier New', monospace;">
+      <i class="fas fa-eye"></i> GM Online: <span style="color: ${statusColor}; font-weight: 600;">${gmStatus}</span>
     </p>
   `;
 
   const result = await foundry.applications.api.DialogV2.prompt({
-    window: { title: "Send Ninja Note" },
+    window: { title: "Pass a Note" },
     content,
     ok: {
-      icon: "fas fa-paper-plane",
+      icon: "fas fa-scroll",
       label: "Send",
       callback: (event, button, dialog) => {
         const textarea = dialog.querySelector('textarea[name="ninja-note-text"]');
@@ -362,18 +391,26 @@ function sendNinjaNote(message) {
     }
   });
 
-  ui.notifications.info("Ninja Note sent!");
+  ui.notifications.info("Note sent.");
 }
 
 /* ──────────────────────────────────────── */
 /* Auto-Create Macros                        */
 /* ──────────────────────────────────────── */
 async function createGMMacro() {
-  const macroName = "\u{1F977} Ninja Notes";
+  const macroName = "\u{1F4DC} Secret Notes";
   const existing = game.macros.find(m =>
     m.name === macroName && m.getFlag(MODULE_ID, "autoCreated")
   );
   if (existing) return;
+
+  // Clean up old macro name if it exists
+  const oldMacro = game.macros.find(m =>
+    m.name === "\u{1F977} Ninja Notes" && m.getFlag(MODULE_ID, "autoCreated")
+  );
+  if (oldMacro) {
+    try { await oldMacro.delete(); } catch { /* ignore */ }
+  }
 
   try {
     await Macro.create({
@@ -385,18 +422,26 @@ if (mod?.api?.open) mod.api.open();
 else ui.notifications.error("Ninja Notes module not available.");`,
       flags: { [MODULE_ID]: { autoCreated: true } }
     });
-    ui.notifications.info("Ninja Notes GM macro created!");
+    ui.notifications.info("Secret Notes GM macro created.");
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to create GM macro:`, error);
   }
 }
 
 async function createPlayerMacro() {
-  const macroName = "\u{1F4DD} Send Ninja Note";
+  const macroName = "\u{1F4DC} Pass a Note";
   const existing = game.macros.find(m =>
     m.name === macroName && m.getFlag(MODULE_ID, "autoCreated")
   );
   if (existing) return;
+
+  // Clean up old macro name if it exists
+  const oldMacro = game.macros.find(m =>
+    m.name === "\u{1F4DD} Send Ninja Note" && m.getFlag(MODULE_ID, "autoCreated")
+  );
+  if (oldMacro) {
+    try { await oldMacro.delete(); } catch { /* ignore */ }
+  }
 
   try {
     await Macro.create({
@@ -408,7 +453,7 @@ if (mod?.api?.sendNote) mod.api.sendNote();
 else ui.notifications.error("Ninja Notes module not available.");`,
       flags: { [MODULE_ID]: { autoCreated: true } }
     });
-    ui.notifications.info("Ninja Notes player macro created!");
+    ui.notifications.info("Pass a Note macro created.");
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to create player macro:`, error);
   }
@@ -421,7 +466,7 @@ function setupChatCommands() {
   Hooks.on("chatMessage", (_log, content) => {
     const text = String(content || "").trim();
 
-    // /nn or /ninja command
+    // /nn or /ninja command — still works, same shortcuts
     const noteMatch = text.match(/^\/(nn|ninja)\s+(.+)$/i);
     if (noteMatch) {
       const message = noteMatch[2].trim();
@@ -435,15 +480,15 @@ function setupChatCommands() {
       const gmOnline = isGMOnline();
 
       const helpText = `
-        <div style="background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">
-          <h4><i class="fas fa-scroll"></i> Ninja Notes Help</h4>
+        <div style="background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; font-family: 'IBM Plex Mono', 'Courier New', monospace; font-size: 12px;">
+          <h4 style="font-family: 'Oswald', 'Impact', sans-serif; text-transform: uppercase; letter-spacing: 0.05em;"><i class="fas fa-scroll"></i> Secret Notes — Help</h4>
           <p><strong>Commands:</strong></p>
           <ul>
-            <li><code>/nn your message</code> — Send a secret note to the GM</li>
+            <li><code>/nn your message</code> — Pass a secret note to the GM</li>
             <li><code>/nnhelp</code> — Show this help</li>
           </ul>
-          <p><strong>Limits:</strong> ${limit} notes per minute</p>
-          <p><strong>GM Status:</strong> ${gmOnline ? "\u{1F7E2} Online" : "\u{1F534} Offline"}</p>
+          <p><strong>Limit:</strong> ${limit} notes per minute</p>
+          <p><strong>GM Online:</strong> ${gmOnline ? "\u{1F7E2} Yes" : "\u{1F534} No"}</p>
         </div>
       `;
 
@@ -466,7 +511,7 @@ function setupContextMenu() {
     if (game.user.isGM) return;
 
     options.push({
-      name: "Send Ninja Note",
+      name: "Pass a Note",
       icon: '<i class="fas fa-scroll"></i>',
       condition: (li) => {
         const userId = li?.dataset?.userId ?? li?.data?.("userId");
@@ -487,7 +532,7 @@ function setupModuleAPI() {
   module.api = {
     open: () => {
       if (!game.user.isGM) {
-        ui.notifications.warn("Only GMs can open the Ninja Notes panel.");
+        ui.notifications.warn("Only GMs can open the Secret Notes panel.");
         return;
       }
       const panel = game.ninjaNotes.gmPanel;
@@ -535,4 +580,6 @@ Hooks.on("ready", async () => {
   } else {
     await createPlayerMacro();
   }
+
+  console.log(`${MODULE_ID} | Secret Notes v2.1.0 ready`);
 });
