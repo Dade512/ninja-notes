@@ -155,7 +155,7 @@ function playNotificationSound() {
     // Military noir: telegraph click / radio static cue
     // Place your preferred .mp3/.ogg in modules/ninja-notes/sounds/
     // Recommended: short telegraph key click, typewriter bell, or radio static burst
-    const audio = new Audio(`modules/${MODULE_ID}/sounds/transmission.mp3`);
+    const audio = new Audio(`modules/${MODULE_ID}/sounds/transmissions.mp3`);
     audio.volume = 0.5;
     audio.play().catch(() => {});
   } catch {
@@ -581,5 +581,5 @@ Hooks.on("ready", async () => {
     await createPlayerMacro();
   }
 
-  console.log(`${MODULE_ID} | Secret Notes v2.1.0 ready`);
+  console.log(`${MODULE_ID} | Secret Notes v2.1.1 ready`);
 });

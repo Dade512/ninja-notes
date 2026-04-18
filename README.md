@@ -2,7 +2,7 @@
 
 **For Foundry VTT v13.350 + Pathfinder 1e System**
 
-Version 2.1.0 | [GitHub](https://github.com/Dade512/ninja-notes)
+Version 2.1.1 | [GitHub](https://github.com/Dade512/ninja-notes)
 
 ---
 
@@ -32,7 +32,7 @@ Players can pass secret notes to the GM without using chat. Notes are private, p
    ├── templates/
    │   └── gm-panel.hbs
    └── sounds/
-       └── transmission.mp3
+       └── transmissions.mp3
    ```
 
 3. Launch Foundry → **Settings → Manage Modules** → Enable **"Ninja Notes — Secret Notes"**.
@@ -69,7 +69,7 @@ A "Secret Notes" panel opens automatically on login (configurable). Incoming not
 
 **Clear all:** The trash icon in the panel header wipes all notes at once.
 
-**Sound cue:** An audio notification plays when a note arrives (configurable). Place your preferred .mp3 file at `sounds/transmission.mp3` — a paper rustle, quill scratch, or soft chime works well.
+**Sound cue:** An audio notification plays when a note arrives (configurable). Place your preferred .mp3 file at `sounds/transmissions.mp3` — a paper rustle, quill scratch, or soft chime works well.
 
 ---
 
@@ -133,7 +133,7 @@ The module imports IBM Plex Mono and Oswald fonts directly, so it works standalo
 Open browser console (F12). On a healthy load you should see:
 
 ```
-ninja-notes | Secret Notes v2.1.0 ready
+ninja-notes | Secret Notes v2.1.1 ready
 ```
 
 ### Notes not arriving
@@ -144,7 +144,7 @@ ninja-notes | Secret Notes v2.1.0 ready
 
 ### No sound on note arrival
 
-1. Verify `sounds/transmission.mp3` exists in the module folder
+1. Verify `sounds/transmissions.mp3` exists in the module folder
 2. Check **Settings → Module Settings → Ninja Notes → Play Sound on Note** is enabled
 3. Browser autoplay policies may block audio until the user has interacted with the page
 
@@ -155,6 +155,9 @@ The module auto-cleans old macro names ("🥷 Ninja Notes" / "📝 Send Ninja No
 ---
 
 ## Changelog
+
+### v2.1.1
+- **Bug fix:** Notification sound path corrected from `transmission.mp3` to `transmissions.mp3` to match the actual file shipped with the module. The 404 was silently swallowed by the audio error handler, so the sound never played. It plays now.
 
 ### v2.1.0 (2026-02-21)
 - Visual overhaul: monospace dossier font, noir color palette, Oswald headings
