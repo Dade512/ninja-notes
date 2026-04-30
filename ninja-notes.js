@@ -53,6 +53,21 @@ Hooks.once("init", () => {
     range: { min: 10, max: 500, step: 10 }
   });
 
+  // v2.1.2: world scope — macros are Macro documents visible to the whole world;
+  // whether to auto-create them is a GM-level setup decision, not per-client.
+  // Consistent with the existing pattern of other world-scope config settings
+  // (persistHistory, maxNotesPerWindow, autoOpenGMPanel).
+  // Default true preserves existing behavior; set false to suppress auto-creation
+  // in deployments that manage macros manually.
+  game.settings.register(MODULE_ID, "autoCreateMacros", {
+    name: "Auto-Create Macros",
+    hint: "Automatically create the 'Secret Notes' GM macro and 'Pass a Note' player macro on first load. Duplicate-detection prevents re-creation if they already exist.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+
   game.settings.register(MODULE_ID, "history", {
     scope: "world",
     config: false,
@@ -101,11 +116,52 @@ function getThrottleConfig() {
   return { limit, windowMs: 60000 };
 }
 
+/* ──────────────────────────────────────── */
+/* History Validation                        */
+/* ──────────────────────────────────────── */
+
+/**
+ * Light validation for a persisted note entry.
+ * Returns false and causes the entry to be silently dropped if any
+ * required field is missing or of the wrong type. senderColor is
+ * optional (defaulted at render time) and not validated here.
+ *
+ * @param {*} entry
+ * @returns {boolean}
+ */
+function _isValidNoteEntry(entry) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+  // ts must be a finite number (Unix ms timestamp)
+  if (typeof entry.ts !== "number" || !isFinite(entry.ts)) return false;
+  // senderId must be a non-empty string
+  if (typeof entry.senderId !== "string" || !entry.senderId) return false;
+  // senderName must be a non-empty string
+  if (typeof entry.senderName !== "string" || !entry.senderName) return false;
+  // message must be a non-empty string (whitespace-only is rejected)
+  if (typeof entry.message !== "string" || !entry.message.trim()) return false;
+  return true;
+}
+
 async function loadHistory() {
   if (!game.settings.get(MODULE_ID, "persistHistory")) return [];
   try {
-    const history = game.settings.get(MODULE_ID, "history");
-    return Array.isArray(history) ? history : [];
+    const raw = game.settings.get(MODULE_ID, "history");
+    if (!Array.isArray(raw)) return [];
+
+    // Filter malformed entries first, then enforce limit.
+    // Enforcing limit on load (not just save) handles entries stored before
+    // the historyLimit setting was lowered, and avoids sending a bloated
+    // array to the GM panel on worlds that skipped a cleanup cycle.
+    const limit = Number(game.settings.get(MODULE_ID, "historyLimit")) || 100;
+    const valid = raw.filter(_isValidNoteEntry);
+
+    if (valid.length < raw.length) {
+      console.warn(
+        `${MODULE_ID} | Dropped ${raw.length - valid.length} malformed history entries on load.`
+      );
+    }
+
+    return valid.slice(-limit);
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to load history:`, error);
     return [];
@@ -116,7 +172,9 @@ async function saveHistory(notes) {
   if (!game.user.isGM || !game.settings.get(MODULE_ID, "persistHistory")) return;
   try {
     const limit = Number(game.settings.get(MODULE_ID, "historyLimit")) || 100;
-    const trimmed = notes.slice(-limit);
+    // Validate before saving — defends against any in-memory corruption
+    // that might have slipped in through addNote or external API calls.
+    const trimmed = notes.filter(_isValidNoteEntry).slice(-limit);
     await game.settings.set(MODULE_ID, "history", trimmed);
   } catch (error) {
     console.warn(`${MODULE_ID} | Failed to save history:`, error);
@@ -170,6 +228,51 @@ function escapeHTML(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
+}
+
+/* ──────────────────────────────────────── */
+/* DOM Helper — context menu userId          */
+/* ──────────────────────────────────────── */
+
+/**
+ * Read the userId from a player-list <li> element regardless of whether
+ * Foundry hands us a native HTMLElement or a jQuery wrapper.
+ *
+ * v13 context menu hooks pass native HTMLElement. Older compat shims and
+ * some module wrappers still pass jQuery objects. We guard the jQuery path
+ * with globalThis.jQuery so we never assume jQuery is present.
+ *
+ * Three cases, in priority order:
+ *   1. HTMLElement  → li.dataset.userId  (v13 standard)
+ *   2. jQuery       → li.data("userId")  (legacy, guarded by jQuery check)
+ *   3. Array-like   → li[0].dataset.userId  (defensive fallback)
+ *
+ * Returns null if no userId can be read.
+ *
+ * @param {HTMLElement|jQuery|*} li
+ * @returns {string|null}
+ */
+function _getListItemUserId(li) {
+  if (!li) return null;
+
+  // Case 1: native HTMLElement — v13 canonical path
+  if (li instanceof HTMLElement) {
+    return li.dataset.userId ?? null;
+  }
+
+  // Case 2: jQuery wrapper — only attempt if jQuery is actually present
+  if (globalThis.jQuery && li instanceof globalThis.jQuery) {
+    return li.data("userId") ?? null;
+  }
+
+  // Case 3: array-like wrapper without jQuery (e.g. a shim or a plain
+  // object with numeric indices). Try unwrapping [0] defensively.
+  const inner = li?.[0];
+  if (inner instanceof HTMLElement) {
+    return inner.dataset.userId ?? null;
+  }
+
+  return null;
 }
 
 /* ──────────────────────────────────────── */
@@ -514,7 +617,9 @@ function setupContextMenu() {
       name: "Pass a Note",
       icon: '<i class="fas fa-scroll"></i>',
       condition: (li) => {
-        const userId = li?.dataset?.userId ?? li?.data?.("userId");
+        // v2.1.2: use _getListItemUserId helper to safely handle both
+        // native HTMLElement (v13) and jQuery wrapper (legacy compat shims).
+        const userId = _getListItemUserId(li);
         return game.users.get(userId)?.isGM === true;
       },
       callback: () => openNoteDialog()
@@ -576,10 +681,18 @@ Hooks.on("ready", async () => {
       setTimeout(() => flashWindow(game.ninjaNotes.gmPanel), 300);
     }
 
-    await createGMMacro();
+    // v2.1.2: gate macro creation on autoCreateMacros setting.
+    // Duplicate-detection inside each create function means this is
+    // idempotent when true; setting to false suppresses creation entirely
+    // for deployments that manage macros manually.
+    if (game.settings.get(MODULE_ID, "autoCreateMacros")) {
+      await createGMMacro();
+    }
   } else {
-    await createPlayerMacro();
+    if (game.settings.get(MODULE_ID, "autoCreateMacros")) {
+      await createPlayerMacro();
+    }
   }
 
-  console.log(`${MODULE_ID} | Secret Notes v2.1.1 ready`);
+  console.log(`${MODULE_ID} | Secret Notes v2.1.2 ready`);
 });

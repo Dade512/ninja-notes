@@ -2,7 +2,7 @@
 
 **For Foundry VTT v13.350 + Pathfinder 1e System**
 
-Version 2.1.1 | [GitHub](https://github.com/Dade512/ninja-notes)
+Version 2.1.2 | [GitHub](https://github.com/Dade512/ninja-notes)
 
 ---
 
@@ -53,7 +53,7 @@ https://raw.githubusercontent.com/Dade512/ninja-notes/main/module.json
 
 There are three ways to pass a note:
 
-**Macro:** A "📜 Pass a Note" macro is auto-created the first time a player logs in. Click it, type your message, hit Send.
+**Macro:** A "📜 Pass a Note" macro is auto-created the first time a player logs in (if Auto-Create Macros is enabled). Click it, type your message, hit Send.
 
 **Chat command:** Type `/nn your secret message here` directly in chat. The message is intercepted and sent privately — it never appears in the chat log.
 
@@ -87,13 +87,14 @@ A "Secret Notes" panel opens automatically on login (configurable). Incoming not
 
 All settings are in **Settings → Module Settings → Ninja Notes**.
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Auto-open GM Panel | ✅ On | Open the Secret Notes panel when the world loads (GM only) |
-| Play Sound on Note | ✅ On | Play audio when a note arrives (per-client) |
-| Max Notes per Minute | 3 | Rate limit per player (1–10) |
-| Remember Notes | ✅ On | Persist notes across world reloads |
-| Max Stored Notes | 100 | Cap on stored notes (10–500). Oldest are deleted first. |
+| Setting | Scope | Default | Description |
+|---------|-------|---------|-------------|
+| Auto-open GM Panel | World | ✅ On | Open the Secret Notes panel when the world loads (GM only) |
+| Play Sound on Note | Client | ✅ On | Play audio when a note arrives (per-client) |
+| Max Notes per Minute | World | 3 | Rate limit per player (1–10) |
+| Remember Notes | World | ✅ On | Persist notes across world reloads |
+| Max Stored Notes | World | 100 | Cap on stored notes (10–500). Oldest are deleted first. |
+| Auto-Create Macros | World | ✅ On | Auto-create the GM and player macros on first load. Disable if managing macros manually. |
 
 ---
 
@@ -133,7 +134,7 @@ The module imports IBM Plex Mono and Oswald fonts directly, so it works standalo
 Open browser console (F12). On a healthy load you should see:
 
 ```
-ninja-notes | Secret Notes v2.1.1 ready
+ninja-notes | Secret Notes v2.1.2 ready
 ```
 
 ### Notes not arriving
@@ -152,12 +153,28 @@ ninja-notes | Secret Notes v2.1.1 ready
 
 The module auto-cleans old macro names ("🥷 Ninja Notes" / "📝 Send Ninja Note") on first load. If they persist, delete them manually from the macro hotbar.
 
+### Macros not being created
+
+Check that **Auto-Create Macros** is enabled in module settings. If you've previously disabled it, re-enable it — the duplicate-detection logic will skip creation if macros already exist, so re-enabling is safe.
+
 ---
 
 ## Changelog
 
+### v2.1.2 — "The Wax Seal Holds"
+Three small hardening patches. No user-facing behavior changes with default settings.
+
+**Optional auto-macro creation (`autoCreateMacros` setting):**
+The module previously called `createGMMacro()` / `createPlayerMacro()` unconditionally on every `ready` hook. Added a world-scope setting `autoCreateMacros` (default `true`) that gates both calls. `world` scope is correct here — macros are Macro documents shared across the world, not a per-client preference, and it's consistent with the existing pattern of other world-scope settings (`persistHistory`, `maxNotesPerWindow`). Default `true` preserves existing behavior exactly. Existing duplicate-detection logic is untouched.
+
+**Context menu userId hardening (`_getListItemUserId` helper):**
+`setupContextMenu` previously read userId as `li?.dataset?.userId ?? li?.data?.("userId")`. The `li.data("userId")` call is jQuery's API and made an unguarded assumption that jQuery was present and that `li` was a jQuery wrapper. v13 passes native `HTMLElement` to most hook handlers; the `data()` call would silently return `undefined` in that context. Added a `_getListItemUserId(li)` helper with three explicit cases: `HTMLElement` (v13 standard path, reads `dataset.userId`), jQuery wrapper (guarded by `globalThis.jQuery` existence check, calls `.data("userId")`), and a defensive array-like fallback for shim wrappers. Context menu behavior is identical.
+
+**Light history entry validation (`_isValidNoteEntry` helper):**
+`loadHistory` previously returned the raw settings array with no per-entry checks, meaning a single malformed entry (missing `ts`, wrong type, empty `message`) could cause render errors in the GM panel. Added `_isValidNoteEntry(entry)` which checks: entry is a non-null object, `ts` is a finite number, `senderId` is a non-empty string, `senderName` is a non-empty string, `message` is a non-empty (non-whitespace) string. Filter applied in both `loadHistory` (with a console warning counting dropped entries) and `saveHistory` (defends against in-memory corruption from external API calls). `historyLimit` is now also enforced on load, not just on save — handles entries stored before the limit setting was lowered.
+
 ### v2.1.1
-- **Bug fix:** Notification sound path corrected from `transmission.mp3` to `transmissions.mp3` to match the actual file shipped with the module. The 404 was silently swallowed by the audio error handler, so the sound never played. It plays now.
+- **Bug fix:** Notification sound path corrected from `transmission.mp3` to `transmissions.mp3` to match the actual file shipped with the module.
 
 ### v2.1.0 (2026-02-21)
 - Visual overhaul: monospace dossier font, noir color palette, Oswald headings
