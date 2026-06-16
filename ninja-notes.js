@@ -221,6 +221,22 @@ function playNotificationSound() {
   }
 }
 
+/**
+ * Distinct cue for a GM reply arriving on a player's client — a different sound
+ * from the incoming-note transmission so a reply is recognizable by ear. Gated
+ * on the same per-client playSound setting.
+ */
+function playReplySound() {
+  if (!game.settings.get(MODULE_ID, "playSound")) return;
+  try {
+    const audio = new Audio(`modules/${MODULE_ID}/sounds/note.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  } catch {
+    // Ignore audio errors
+  }
+}
+
 /* ──────────────────────────────────────── */
 /* Escape HTML (for safe rendering)          */
 /* ──────────────────────────────────────── */
@@ -300,7 +316,8 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
     },
     actions: {
       clearNotes: NinjaNotesGMPanel._onClearNotes,
-      dismissNote: NinjaNotesGMPanel._onDismissNote
+      dismissNote: NinjaNotesGMPanel._onDismissNote,
+      replyNote: NinjaNotesGMPanel._onReplyNote
     }
   };
 
@@ -374,6 +391,16 @@ class NinjaNotesGMPanel extends HandlebarsApplicationMixin(ApplicationV2) {
       await this.dismissNote(noteIndex);
     }
   }
+
+  /**
+   * Per-note reply action (data-action="replyNote"): open the GM reply dialog
+   * for the note's sender.
+   */
+  static async _onReplyNote(event, target) {
+    const idx = Number(target?.dataset?.noteIndex);
+    if (Number.isNaN(idx) || idx < 0 || idx >= this.notes.length) return;
+    await openReplyDialog(this.notes[idx]);
+  }
 }
 
 /* ──────────────────────────────────────── */
@@ -390,8 +417,48 @@ function setupSocketHandlers() {
       case "throttled":
         handleThrottleNotification(data.payload);
         break;
+      case "reply":
+        await handleIncomingReply(data.payload);
+        break;
     }
   });
+}
+
+/**
+ * Player-side handler for a GM reply. Only the targeted player acts (others
+ * ignore it); the GM never receives its own emit. Shows the reply as a private
+ * themed popup (kept out of chat, true to the module) with a distinct chime.
+ */
+async function handleIncomingReply(payload) {
+  if (!payload || payload.targetId !== game.user.id) return;
+  const fromName = String(payload.fromName || "The GM").trim() || "The GM";
+  const message = String(payload.message || "").trim();
+  if (!message) return;
+
+  playReplySound();
+  ui.notifications.info(`Reply from ${fromName}.`);
+
+  const escapedMsg = escapeHTML(message);
+  const escapedFrom = escapeHTML(fromName);
+  const content = `
+    <div class="form-group">
+      <label style="font-family: 'Oswald', 'Impact', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-size: 13px;">
+        <i class="fas fa-feather"></i> Reply from ${escapedFrom}
+      </label>
+      <p style="white-space: pre-wrap; word-wrap: break-word; margin-top: 8px; padding: 10px 12px; background: rgba(0,0,0,0.15); border-left: 3px solid #b8943e; font-family: 'IBM Plex Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.55; color: #c8ccd4;">${escapedMsg}</p>
+    </div>
+  `;
+
+  try {
+    await foundry.applications.api.DialogV2.prompt({
+      window: { title: "A Reply Arrives" },
+      content,
+      ok: { icon: "fas fa-check", label: "Acknowledged" },
+      rejectClose: false
+    });
+  } catch {
+    // Dialog dismissed — nothing to do.
+  }
 }
 
 async function handleIncomingNote(payload) {
@@ -466,8 +533,10 @@ async function openNoteDialog(prefill = "") {
     ok: {
       icon: "fas fa-scroll",
       label: "Send",
-      callback: (event, button, dialog) => {
-        const textarea = dialog.querySelector('textarea[name="ninja-note-text"]');
+      callback: (event, button) => {
+        // In v13 DialogV2 the 3rd callback arg is the DialogV2 instance (no
+        // querySelector); read the field from the button's own form instead.
+        const textarea = button.form?.querySelector('textarea[name="ninja-note-text"]');
         return textarea?.value?.trim() || "";
       }
     },
@@ -475,6 +544,65 @@ async function openNoteDialog(prefill = "") {
   });
 
   if (result) sendNinjaNote(result);
+}
+
+/**
+ * GM-side: open a dialog to reply privately to the player who sent a note. The
+ * reply is delivered live over the socket (there is no player-side persistence),
+ * so if the player is offline we warn and abort rather than lose it silently.
+ * @param {{senderId:string, senderName?:string, message?:string}} note
+ */
+async function openReplyDialog(note) {
+  if (!game.user.isGM || !note?.senderId) return;
+  const target = game.users.get(note.senderId);
+  if (!target) {
+    ui.notifications.warn("That player no longer exists.");
+    return;
+  }
+  if (!target.active) {
+    ui.notifications.warn(`${target.name} is offline — they won't receive a reply right now.`);
+    return;
+  }
+
+  const escapedName = escapeHTML(note.senderName || target.name);
+  const escapedMsg = escapeHTML(note.message || "");
+  const content = `
+    <p style="font-size: 11px; opacity: 0.7; margin: 0 0 6px; font-family: 'IBM Plex Mono', 'Courier New', monospace;">
+      <i class="fas fa-reply"></i> Replying to <strong>${escapedName}</strong>
+    </p>
+    <blockquote style="margin: 0 0 10px; padding: 6px 10px; border-left: 3px solid #5c6370; background: rgba(0,0,0,0.12); font-family: 'IBM Plex Mono', 'Courier New', monospace; font-size: 11px; color: #9aa0ab; white-space: pre-wrap; word-wrap: break-word;">${escapedMsg}</blockquote>
+    <div class="form-group">
+      <label style="font-family: 'Oswald', 'Impact', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-size: 13px;">Your Reply:</label>
+      <textarea name="ninja-reply-text" rows="5" style="width:100%; resize: vertical; font-family: 'IBM Plex Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.5;"></textarea>
+    </div>
+  `;
+
+  const result = await foundry.applications.api.DialogV2.prompt({
+    window: { title: `Reply to ${target.name}` },
+    content,
+    ok: {
+      icon: "fas fa-feather",
+      label: "Send Reply",
+      callback: (event, button) => {
+        // v13 DialogV2: 3rd arg is the instance (no querySelector); use the form.
+        const textarea = button.form?.querySelector('textarea[name="ninja-reply-text"]');
+        return textarea?.value?.trim() || "";
+      }
+    },
+    rejectClose: false
+  });
+
+  if (!result) return;
+  game.socket.emit(SOCKET_NAME, {
+    type: "reply",
+    payload: {
+      targetId: note.senderId,
+      fromName: game.user.name,
+      message: String(result).trim(),
+      ts: Date.now()
+    }
+  });
+  ui.notifications.info(`Reply sent to ${target.name}.`);
 }
 
 function sendNinjaNote(message) {
@@ -587,9 +715,11 @@ function setupChatCommands() {
           <h4 style="font-family: 'Oswald', 'Impact', sans-serif; text-transform: uppercase; letter-spacing: 0.05em;"><i class="fas fa-scroll"></i> Secret Notes — Help</h4>
           <p><strong>Commands:</strong></p>
           <ul>
-            <li><code>/nn your message</code> — Pass a secret note to the GM</li>
+            <li><code>/nn your message</code> or <code>/ninja your message</code> — Pass a secret note to the GM</li>
+            <li>Right-click the GM in the Players list → <strong>Pass a Note</strong></li>
             <li><code>/nnhelp</code> — Show this help</li>
           </ul>
+          <p><i class="fas fa-feather"></i> The GM can reply privately — replies pop up for you with a chime, never in chat.</p>
           <p><strong>Limit:</strong> ${limit} notes per minute</p>
           <p><strong>GM Online:</strong> ${gmOnline ? "\u{1F7E2} Yes" : "\u{1F534} No"}</p>
         </div>
@@ -694,5 +824,5 @@ Hooks.on("ready", async () => {
     }
   }
 
-  console.log(`${MODULE_ID} | Secret Notes v2.1.2 ready`);
+  console.log(`${MODULE_ID} | Secret Notes v2.2.0 ready`);
 });

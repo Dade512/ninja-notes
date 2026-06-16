@@ -82,6 +82,35 @@
   letter-spacing: 0.01em;
 }
 
+/* Per-note action row (Reply) */
+.ninja-note .note-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.ninja-note .note-reply {
+  width: auto;
+  background: none;
+  border: 1px solid var(--baph-bg-surface, #353c47);
+  color: var(--baph-text-muted, #8a909b);
+  cursor: pointer;
+  font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 3px 10px;
+  border-radius: 2px;
+  transition: color 0.1s, border-color 0.1s, background-color 0.1s;
+}
+
+.ninja-note .note-reply:hover {
+  color: var(--baph-gold, #b8943e);
+  border-color: var(--baph-gold-dim, #8a6f2e);
+  background-color: rgba(184, 148, 62, 0.08);
+}
+
 /* Per-note dismiss button */
 .ninja-note .note-dismiss {
   position: absolute;

@@ -2,13 +2,13 @@
 
 **For Foundry VTT v13.350 + Pathfinder 1e System**
 
-Version 2.1.2 | [GitHub](https://github.com/Dade512/ninja-notes)
+Version 2.2.0 | [GitHub](https://github.com/Dade512/ninja-notes)
 
 ---
 
 ## What This Module Does
 
-Players can pass secret notes to the GM without using chat. Notes are private, persistent across reloads, and styled to match the Echoes of Baphomet campaign's noir aesthetic. The GM sees all incoming notes in a dedicated panel with per-note dismiss and full history management.
+Players can pass secret notes to the GM without using chat. Notes are private, persistent across reloads, and styled to match the Echoes of Baphomet campaign's noir aesthetic. The GM sees all incoming notes in a dedicated panel with per-note dismiss and full history management — and can **reply privately** to any note (new in v2.2.0), which pops up for that player alone with its own chime, still entirely out of chat.
 
 ---
 
@@ -32,7 +32,8 @@ Players can pass secret notes to the GM without using chat. Notes are private, p
    ├── templates/
    │   └── gm-panel.hbs
    └── sounds/
-       └── transmissions.mp3
+       ├── transmissions.mp3   (incoming-note chime)
+       └── note.mp3            (GM-reply chime)
    ```
 
 3. Launch Foundry → **Settings → Manage Modules** → Enable **"Ninja Notes — Secret Notes"**.
@@ -42,7 +43,7 @@ Players can pass secret notes to the GM without using chat. Notes are private, p
 In Foundry's **Add-on Modules** installer, paste:
 
 ```
-https://raw.githubusercontent.com/Dade512/ninja-notes/main/module.json
+https://github.com/Dade512/ninja-notes/releases/latest/download/module.json
 ```
 
 ---
@@ -61,15 +62,19 @@ There are three ways to pass a note:
 
 Players see a confirmation ("Note sent.") and a warning if sending too fast (rate-limited to 3 per minute by default).
 
+**Getting a reply:** if the GM replies to your note, it pops up privately on your screen with a distinct chime — never in the chat log. Click **Acknowledged** to dismiss it.
+
 ### For the GM
 
 A "Secret Notes" panel opens automatically on login (configurable). Incoming notes appear with the sender's name, color, and timestamp. Each note displays in monospace font — styled like a handwritten message slipped across the table.
+
+**Reply:** Each note has a **Reply** button. Click it to write a private reply to that player; it's delivered live to their screen (out of chat) with its own chime. If the player is offline you're warned and the reply isn't sent (there's no player-side queue for replies).
 
 **Per-note dismiss:** Hover over any note to reveal the ✕ button. Clicking it removes that specific note from both the display and the stored settings.
 
 **Clear all:** The trash icon in the panel header wipes all notes at once.
 
-**Sound cue:** An audio notification plays when a note arrives (configurable). Place your preferred .mp3 file at `sounds/transmissions.mp3` — a paper rustle, quill scratch, or soft chime works well.
+**Sound cues:** Audio plays when a note arrives and when a reply lands (configurable, per-client). Drop your preferred `.mp3` files at `sounds/transmissions.mp3` (incoming notes) and `sounds/note.mp3` (GM replies) — a paper rustle, quill scratch, or soft chime works well.
 
 ---
 
@@ -134,7 +139,7 @@ The module imports IBM Plex Mono and Oswald fonts directly, so it works standalo
 Open browser console (F12). On a healthy load you should see:
 
 ```
-ninja-notes | Secret Notes v2.1.2 ready
+ninja-notes | Secret Notes v2.2.0 ready
 ```
 
 ### Notes not arriving
@@ -160,6 +165,15 @@ Check that **Auto-Create Macros** is enabled in module settings. If you've previ
 ---
 
 ## Changelog
+
+### v2.2.0 — "The Reply"
+GM → player replies, plus housekeeping.
+
+- **Reply to a note (new):** every note in the GM panel now has a **Reply** button. The GM writes a private reply that's delivered live over the socket to that player only — it pops up on their screen (out of chat, true to the module) with its own chime and an **Acknowledged** button. Other players never see it, and the GM never receives its own emit. If the target player is offline the GM is warned and nothing is sent (replies are live-only; there is no player-side queue).
+- **Distinct reply chime:** the previously-unused `sounds/note.mp3` is now the reply cue, separate from the `transmissions.mp3` incoming-note sound. Both honor the per-client **Play Sound on Note** setting.
+- **Bug fix (also affected note-sending):** the dialog "Send" / "Send Reply" callback read the textarea via `dialog.querySelector(...)`, but in Foundry v13's DialogV2 the callback's third argument is the dialog **instance** (no `querySelector`) — so the call threw and the dialog silently stayed open without sending. Both the player **note-send** dialog and the new reply dialog now read the field from the button's form (`button.form.querySelector(...)`). Confirmed end-to-end live (player received the GM's reply popup + chime).
+- **Docs/help sync:** `/nnhelp` now lists the `/ninja` alias and the right-click context-menu path, and mentions replies. README install tree lists `note.mp3`.
+- **Installable release:** the manifest/download now point to GitHub release assets (`releases/latest/download/module.{json,zip}`) with `module.json` at the zip root, so Foundry can install/update directly (the old `archive/main.zip` nested the folder and couldn't install).
 
 ### v2.1.2 — "The Wax Seal Holds"
 Three small hardening patches. No user-facing behavior changes with default settings.

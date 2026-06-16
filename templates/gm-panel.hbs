@@ -8,6 +8,14 @@
             <span class="note-time">{{this.timestamp}}</span>
           </div>
           <p class="note-message">{{{this.escapedMessage}}}</p>
+          <div class="note-actions">
+            <button class="note-reply"
+                    data-action="replyNote"
+                    data-note-index="{{this.index}}"
+                    title="Reply privately to this player">
+              <i class="fas fa-reply"></i> Reply
+            </button>
+          </div>
           <button class="note-dismiss"
                   data-action="dismissNote"
                   data-note-index="{{this.index}}"
