@@ -68,6 +68,8 @@ Players see a confirmation ("Note sent.") and a warning if sending too fast (rat
 
 A "Secret Notes" panel opens automatically on login (configurable). Incoming notes appear with the sender's name, color, and timestamp. Each note displays in monospace font — styled like a handwritten message slipped across the table.
 
+**Macro:** A "📜 Secret Notes" GM macro is auto-created on first load (if Auto-Create Macros is enabled), so you can reopen the panel from the hotbar any time you've closed it. Duplicate-detection skips creation if it already exists.
+
 **Reply:** Each note has a **Reply** button. Click it to write a private reply to that player; it's delivered live to their screen (out of chat) with its own chime. If the player is offline you're warned and the reply isn't sent (there's no player-side queue for replies).
 
 **Per-note dismiss:** Hover over any note to reveal the ✕ button. Clicking it removes that specific note from both the display and the stored settings.
@@ -146,7 +148,7 @@ ninja-notes | Secret Notes v2.2.0 ready
 
 1. Verify both the player AND GM have the module enabled
 2. Check that `"socket": true` is in module.json (required for private messaging)
-3. The GM must be online — if offline, notes queue until a GM connects
+3. A GM must be online when the note is sent. Notes are delivered live over the socket and are **not** queued or stored for later — if no GM is connected, the sender is warned and the note reaches no one. Re-send once a GM is online. (The same live-only model applies to GM replies.)
 
 ### No sound on note arrival
 
