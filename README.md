@@ -2,7 +2,7 @@
 
 **For Foundry VTT v13.350 + Pathfinder 1e System**
 
-Version 2.2.0 | [GitHub](https://github.com/Dade512/ninja-notes)
+Version 2.2.1 | [GitHub](https://github.com/Dade512/ninja-notes)
 
 ---
 
@@ -167,6 +167,12 @@ Check that **Auto-Create Macros** is enabled in module settings. If you've previ
 ---
 
 ## Changelog
+
+### v2.2.1 — "Honest Ink"
+Doc/UX truth fix. No behavior change.
+
+- **Accurate offline-GM warning:** the player send dialog previously warned *"your note will be waiting when they return"* — but notes are delivered live over the socket and are **not** queued or stored. The warning now says the note won't reach anyone until a GM is connected, and to re-send then (matching the live-only reply behavior). README troubleshooting was corrected to match in this release too.
+- **Version-truth:** the `ready` console log now reports the correct version.
 
 ### v2.2.0 — "The Reply"
 GM → player replies, plus housekeeping.

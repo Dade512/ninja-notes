@@ -510,7 +510,7 @@ function handleThrottleNotification(payload) {
 /* ──────────────────────────────────────── */
 async function openNoteDialog(prefill = "") {
   if (!isGMOnline()) {
-    ui.notifications.warn("No GM is online. Your note will be waiting when they return.");
+    ui.notifications.warn("No GM is online — notes are delivered live and aren't stored, so this won't reach anyone. Send it again once a GM is connected.");
   }
 
   const gmStatus = isGMOnline() ? "Yes" : "No";
@@ -824,5 +824,5 @@ Hooks.on("ready", async () => {
     }
   }
 
-  console.log(`${MODULE_ID} | Secret Notes v2.2.0 ready`);
+  console.log(`${MODULE_ID} | Secret Notes v2.2.1 ready`);
 });
