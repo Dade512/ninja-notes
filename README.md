@@ -2,13 +2,15 @@
 
 **For Foundry VTT v13.350 + Pathfinder 1e System**
 
-Version 2.2.1 | [GitHub](https://github.com/Dade512/ninja-notes)
+Version 2.3.0 | [GitHub](https://github.com/Dade512/ninja-notes)
 
 ---
 
 ## What This Module Does
 
-Players can pass secret notes to the GM without using chat. Notes are private, persistent across reloads, and styled to match the Echoes of Baphomet campaign's noir aesthetic. The GM sees all incoming notes in a dedicated panel with per-note dismiss and full history management — and can **reply privately** to any note (new in v2.2.0), which pops up for that player alone with its own chime, still entirely out of chat.
+Players can pass secret notes to the GM without using chat. Notes are genuinely private — delivered live and persisted **only in the GM's own browser** (client-scope storage, never replicated to players; new in v2.3.0) — persistent across reloads, and styled to match the Echoes of Baphomet campaign's noir aesthetic. The GM sees all incoming notes in a dedicated panel with per-note dismiss and full history management — and can **reply privately** to any note (new in v2.2.0), which pops up for that player alone with its own chime, still entirely out of chat.
+
+> **Privacy & persistence (v2.3.0):** note history is stored with Foundry `scope: "client"`, so it lives only in the GM's browser local storage and is never sent to player clients. Earlier versions stored history `scope: "world"`, which Foundry replicates to every client — so a player could read persisted notes via `game.settings.get("ninja-notes", "history")`. Trade-off of the fix: history is now per-GM-browser (it persists across reloads but does not follow the GM to a different browser or machine), and existing world-scoped history does not migrate — the panel starts fresh after upgrading.
 
 ---
 

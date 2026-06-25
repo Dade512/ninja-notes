@@ -68,8 +68,14 @@ Hooks.once("init", () => {
     default: true
   });
 
+  // CLIENT scope (v2.3.0 privacy fix): note history lives only in the GM's browser
+  // local storage and is never replicated to players. Only the GM writes it
+  // (saveHistory is GM-guarded) and reads it (loadHistory runs only inside the GM
+  // panel path), so client scope keeps it private. Closes the prior world-scope leak
+  // where any player could read persisted notes via game.settings.get(..., "history").
+  // Trade-off: history is now per-GM-browser (persists across reloads, not across machines).
   game.settings.register(MODULE_ID, "history", {
-    scope: "world",
+    scope: "client",
     config: false,
     type: Object,
     default: []
@@ -824,5 +830,5 @@ Hooks.on("ready", async () => {
     }
   }
 
-  console.log(`${MODULE_ID} | Secret Notes v2.2.1 ready`);
+  console.log(`${MODULE_ID} | Secret Notes v2.3.0 ready`);
 });
